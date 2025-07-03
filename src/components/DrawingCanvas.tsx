@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { gameService } from '@/lib/gameService';
+import { gameServiceSocket as gameService } from '@/lib/gameService-socket';
 
 interface CanvasProps {
   selectedColor: string;
@@ -198,7 +198,7 @@ export const DrawingCanvas: React.FC<CanvasProps> = ({
   useEffect(() => {
     const initializeCanvas = async () => {
       try {
-        await gameService.initializeSession();
+        // No session needed for socket backend
         const pixels = await gameService.getPixels();
         
         // Load existing pixels into canvas
@@ -210,11 +210,10 @@ export const DrawingCanvas: React.FC<CanvasProps> = ({
 
         ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         
-        pixels.forEach(pixel => {
+        (pixels as any[]).forEach(pixel => {
           if (pixel.color) {
             ctx.fillStyle = pixel.color;
             ctx.fillRect(pixel.x * PIXEL_SIZE, pixel.y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
-            
             setPixelData(prev => {
               const newData = [...prev];
               newData[pixel.y] = [...newData[pixel.y]];
@@ -272,7 +271,7 @@ export const DrawingCanvas: React.FC<CanvasProps> = ({
 
     return () => {
       console.log('Cleaning up real-time subscription...');
-      subscription.unsubscribe();
+      // No unsubscribe needed for socket-based service
     };
   }, []);
 
