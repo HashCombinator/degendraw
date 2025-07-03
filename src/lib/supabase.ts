@@ -7,7 +7,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  }
+});
 
 // TypeScript types for our database tables
 export interface GameState {
@@ -22,7 +28,6 @@ export interface GameState {
 export interface UserSession {
   id: string;
   ip_address: string;
-  wallet_address: string | null;
   ink_remaining: number;
   eraser_remaining: number;
   last_ink_refill: string;
@@ -36,7 +41,7 @@ export interface Pixel {
   x: number;
   y: number;
   color: string;
-  user_id: string;
+  user_id?: string;
   ip_address: string;
   created_at: string;
 }
@@ -45,7 +50,7 @@ export interface ChatMessage {
   id: string;
   username: string;
   content: string;
-  user_id: string;
+  user_id?: string;
   ip_address: string;
   created_at: string;
 } 

@@ -1,19 +1,21 @@
-
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { gameService } from '@/lib/gameService';
 
 interface CanvasProps {
   selectedColor: string;
   currentTool: 'pen' | 'eraser';
   inkRemaining: number;
   onInkUsed: () => void;
+  hasEraserAccess: boolean;
 }
 
 export const DrawingCanvas: React.FC<CanvasProps> = ({
   selectedColor,
   currentTool,
   inkRemaining,
-  onInkUsed
+  onInkUsed,
+  hasEraserAccess
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -36,7 +38,10 @@ export const DrawingCanvas: React.FC<CanvasProps> = ({
     const pixelX = Math.floor(x / PIXEL_SIZE);
     const pixelY = Math.floor(y / PIXEL_SIZE);
 
-    if (pixelX < 0 || pixelX >= CANVAS_WIDTH || pixelY < 0 || pixelY >= CANVAS_HEIGHT) return;
+    if (pixelX < 0 || pixelX >= CANVAS_WIDTH / PIXEL_SIZE || 
+        pixelY < 0 || pixelY >= CANVAS_HEIGHT / PIXEL_SIZE) {
+      return;
+    }
 
     if (currentTool === 'pen') {
       if (inkRemaining <= 0) {
@@ -71,7 +76,7 @@ export const DrawingCanvas: React.FC<CanvasProps> = ({
         return;
       }
 
-      // Draw 3x3 square
+      // Draw 3x3 square immediately for smooth UX
       ctx.fillStyle = selectedColor;
       ctx.fillRect(pixelX * PIXEL_SIZE, pixelY * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
       
@@ -94,6 +99,11 @@ export const DrawingCanvas: React.FC<CanvasProps> = ({
         return newData;
       });
 
+      // Send to backend (debounced)
+      gameService.placePixel(pixelX, pixelY, selectedColor).catch(error => {
+        console.error('Error placing pixel:', error);
+      });
+
       onInkUsed();
     } else if (currentTool === 'eraser') {
       // Check if any pixel in the 3x3 area is filled
@@ -112,7 +122,7 @@ export const DrawingCanvas: React.FC<CanvasProps> = ({
       
       if (!hasPixels) return;
 
-      // Erase the 3x3 area
+      // Erase the 3x3 area immediately
       ctx.clearRect(pixelX * PIXEL_SIZE, pixelY * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
       
       setPixelData(prev => {
@@ -131,6 +141,11 @@ export const DrawingCanvas: React.FC<CanvasProps> = ({
           }
         }
         return newData;
+      });
+
+      // Send erase to backend
+      gameService.erasePixel(pixelX, pixelY).catch(error => {
+        console.error('Error erasing pixel:', error);
       });
     }
   }, [selectedColor, currentTool, inkRemaining, pixelData, onInkUsed, toast]);
@@ -179,28 +194,87 @@ export const DrawingCanvas: React.FC<CanvasProps> = ({
     });
   }, [toast]);
 
-  const redrawCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-    for (let y = 0; y < pixelData.length; y++) {
-      for (let x = 0; x < pixelData[y].length; x++) {
-        if (pixelData[y][x]) {
-          ctx.fillStyle = pixelData[y][x];
-          ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
-        }
-      }
-    }
-  }, [pixelData]);
-
+  // Initialize game service and load existing pixels
   useEffect(() => {
-    redrawCanvas();
-  }, [redrawCanvas]);
+    const initializeCanvas = async () => {
+      try {
+        await gameService.initializeSession();
+        const pixels = await gameService.getPixels();
+        
+        // Load existing pixels into canvas
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        
+        pixels.forEach(pixel => {
+          if (pixel.color) {
+            ctx.fillStyle = pixel.color;
+            ctx.fillRect(pixel.x * PIXEL_SIZE, pixel.y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+            
+            setPixelData(prev => {
+              const newData = [...prev];
+              newData[pixel.y] = [...newData[pixel.y]];
+              newData[pixel.y][pixel.x] = pixel.color;
+              return newData;
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Error loading pixels:', error);
+      }
+    };
+
+    initializeCanvas();
+  }, []);
+
+  // Subscribe to real-time pixel updates
+  useEffect(() => {
+    console.log('Setting up real-time subscription...');
+    
+    const subscription = gameService.subscribeToPixels((pixel) => {
+      console.log('Received real-time pixel update:', pixel);
+      
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      if (pixel.color) {
+        // New pixel placed by another user
+        console.log('Drawing pixel from another user:', pixel.x, pixel.y, pixel.color);
+        ctx.fillStyle = pixel.color;
+        ctx.fillRect(pixel.x * PIXEL_SIZE, pixel.y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+        
+        setPixelData(prev => {
+          const newData = [...prev];
+          newData[pixel.y] = [...newData[pixel.y]];
+          newData[pixel.y][pixel.x] = pixel.color;
+          return newData;
+        });
+      } else {
+        // Pixel erased by another user
+        console.log('Erasing pixel from another user:', pixel.x, pixel.y);
+        ctx.clearRect(pixel.x * PIXEL_SIZE, pixel.y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+        
+        setPixelData(prev => {
+          const newData = [...prev];
+          newData[pixel.y] = [...newData[pixel.y]];
+          newData[pixel.y][pixel.x] = '';
+          return newData;
+        });
+      }
+    });
+
+    return () => {
+      console.log('Cleaning up real-time subscription...');
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Expose clearCanvas method to parent
   useEffect(() => {
