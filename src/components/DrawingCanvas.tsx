@@ -22,7 +22,7 @@ export const DrawingCanvas: React.FC<CanvasProps> = ({
   );
   const { toast } = useToast();
 
-  const PIXEL_SIZE = 1;
+  const PIXEL_SIZE = 3;
   const CANVAS_WIDTH = 1600;
   const CANVAS_HEIGHT = 900;
 
@@ -48,35 +48,88 @@ export const DrawingCanvas: React.FC<CanvasProps> = ({
         return;
       }
 
-      if (pixelData[pixelY][pixelX] !== '') {
+      // Check if any pixel in the 3x3 area is already filled
+      let hasConflict = false;
+      for (let dy = 0; dy < 3; dy++) {
+        for (let dx = 0; dx < 3; dx++) {
+          const checkY = pixelY + dy;
+          const checkX = pixelX + dx;
+          if (checkY < 900 && checkX < 1600 && pixelData[checkY]?.[checkX] !== '') {
+            hasConflict = true;
+            break;
+          }
+        }
+        if (hasConflict) break;
+      }
+      
+      if (hasConflict) {
         toast({
-          title: "Pixel already filled!",
+          title: "Area already filled!",
           description: "You can't draw over existing pixels.",
           variant: "destructive"
         });
         return;
       }
 
+      // Draw 3x3 square
       ctx.fillStyle = selectedColor;
       ctx.fillRect(pixelX * PIXEL_SIZE, pixelY * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
       
+      // Update pixel data for the 3x3 area
       setPixelData(prev => {
         const newData = [...prev];
-        newData[pixelY] = [...newData[pixelY]];
-        newData[pixelY][pixelX] = selectedColor;
+        // Fill the 3x3 area
+        for (let dy = 0; dy < 3; dy++) {
+          for (let dx = 0; dx < 3; dx++) {
+            const newY = pixelY + dy;
+            const newX = pixelX + dx;
+            if (newY < 900 && newX < 1600) {
+              if (!newData[newY]) {
+                newData[newY] = [...newData[newY]];
+              }
+              newData[newY][newX] = selectedColor;
+            }
+          }
+        }
         return newData;
       });
 
       onInkUsed();
     } else if (currentTool === 'eraser') {
-      if (pixelData[pixelY][pixelX] === '') return;
+      // Check if any pixel in the 3x3 area is filled
+      let hasPixels = false;
+      for (let dy = 0; dy < 3; dy++) {
+        for (let dx = 0; dx < 3; dx++) {
+          const checkY = pixelY + dy;
+          const checkX = pixelX + dx;
+          if (checkY < 900 && checkX < 1600 && pixelData[checkY]?.[checkX] !== '') {
+            hasPixels = true;
+            break;
+          }
+        }
+        if (hasPixels) break;
+      }
+      
+      if (!hasPixels) return;
 
+      // Erase the 3x3 area
       ctx.clearRect(pixelX * PIXEL_SIZE, pixelY * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
       
       setPixelData(prev => {
         const newData = [...prev];
-        newData[pixelY] = [...newData[pixelY]];
-        newData[pixelY][pixelX] = '';
+        // Clear the 3x3 area
+        for (let dy = 0; dy < 3; dy++) {
+          for (let dx = 0; dx < 3; dx++) {
+            const newY = pixelY + dy;
+            const newX = pixelX + dx;
+            if (newY < 900 && newX < 1600) {
+              if (!newData[newY]) {
+                newData[newY] = [...newData[newY]];
+              }
+              newData[newY][newX] = '';
+            }
+          }
+        }
         return newData;
       });
     }

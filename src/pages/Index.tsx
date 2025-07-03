@@ -13,11 +13,11 @@ import { useToast } from '@/hooks/use-toast';
 const Index = () => {
   const [selectedColor, setSelectedColor] = useState('#FF0000');
   const [currentTool, setCurrentTool] = useState<'pen' | 'eraser'>('pen');
-  const [inkRemaining, setInkRemaining] = useState(30);
+  const [inkRemaining, setInkRemaining] = useState(2000);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const { toast } = useToast();
 
-  const MAX_INK = 30;
+  const MAX_INK = 2000;
   const hasEraserAccess = false; // Will be determined by wallet token balance
 
   const handleInkUsed = useCallback(() => {
