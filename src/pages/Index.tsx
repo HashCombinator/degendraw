@@ -34,6 +34,31 @@ const Index = () => {
           setEraserRemaining(session.eraser_remaining);
         }
         setIsConnected(true);
+        
+        // Test Supabase connection
+        if (gameService.getMode() === 'online') {
+          console.log('Testing Supabase connection...');
+          try {
+            const { supabase } = await import('@/lib/supabase');
+            const { data, error } = await supabase
+              .from('user_sessions')
+              .select('count')
+              .limit(1);
+            
+            if (error) {
+              console.error('Supabase connection test failed:', error);
+              toast({
+                title: "Database Error",
+                description: "Could not connect to database. Check your Supabase setup.",
+                variant: "destructive"
+              });
+            } else {
+              console.log('Supabase connection successful!');
+            }
+          } catch (error) {
+            console.error('Supabase test error:', error);
+          }
+        }
       } catch (error) {
         console.error('Error initializing game:', error);
         toast({
@@ -125,6 +150,24 @@ const Index = () => {
             className="px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
           >
             Reset Round
+          </button>
+          <button
+            onClick={() => {
+              const currentMode = gameService.getMode();
+              const newMode = currentMode === 'local' ? 'online' : 'local';
+              gameService.setMode(newMode);
+              toast({
+                title: `Switched to ${newMode} mode`,
+                description: newMode === 'online' ? 'Now using Supabase database' : 'Now using local storage',
+              });
+            }}
+            className={`px-3 py-1 text-xs rounded transition-colors ${
+              gameService.getMode() === 'online' 
+                ? 'bg-green-500 text-white hover:bg-green-600' 
+                : 'bg-blue-500 text-white hover:bg-blue-600'
+            }`}
+          >
+            {gameService.getMode() === 'online' ? 'Online' : 'Local'}
           </button>
         </div>
         

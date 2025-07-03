@@ -15,11 +15,12 @@ export const GameTimer: React.FC<GameTimerProps> = ({ onReset }) => {
     let roundEndTime: Date | null = null;
     let currentRoundNumber = 0;
     let lastResetTime = 0;
+    let isRoundEnding = false;
 
     // Initialize timer with current game state
     const initializeTimer = async () => {
       try {
-        const gameState = await gameService.getGameState();
+        const gameState = await gameService.getSynchronizedGameState();
         roundEndTime = new Date(gameState.round_end_time);
         currentRoundNumber = gameState.round_number;
         
@@ -43,7 +44,7 @@ export const GameTimer: React.FC<GameTimerProps> = ({ onReset }) => {
     // Check for round changes
     const checkRoundChange = async () => {
       try {
-        const gameState = await gameService.getGameState();
+        const gameState = await gameService.getSynchronizedGameState();
         if (gameState.round_number !== currentRoundNumber) {
           console.log(`Round changed from ${currentRoundNumber} to ${gameState.round_number}`);
           
@@ -53,11 +54,13 @@ export const GameTimer: React.FC<GameTimerProps> = ({ onReset }) => {
           
           // Update UI
           setRoundNumber(currentRoundNumber);
+          setTimeLeft(30); // Reset to 30 seconds for new round
           
           // Trigger reset (but prevent multiple rapid resets)
           const now = Date.now();
           if (now - lastResetTime > 1000) {
             lastResetTime = now;
+            isRoundEnding = false;
             onReset();
           }
         }
@@ -69,8 +72,8 @@ export const GameTimer: React.FC<GameTimerProps> = ({ onReset }) => {
     // Initialize timer
     initializeTimer();
 
-    // Check for round changes every 5 seconds
-    const roundCheckInterval = setInterval(checkRoundChange, 5000);
+    // Check for round changes every 2 seconds
+    const roundCheckInterval = setInterval(checkRoundChange, 2000);
 
     // Update countdown every second
     const countdownInterval = setInterval(() => {
@@ -81,9 +84,10 @@ export const GameTimer: React.FC<GameTimerProps> = ({ onReset }) => {
       
       setTimeLeft(remaining);
       
-      // If round ended, check for new round
-      if (remaining === 0) {
+      // If round ended and we haven't already triggered a reset
+      if (remaining === 0 && !isRoundEnding) {
         console.log('Round ended, checking for new round');
+        isRoundEnding = true;
         setTimeout(checkRoundChange, 100);
       }
     }, 1000);

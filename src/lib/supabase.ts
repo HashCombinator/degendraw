@@ -1,13 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
+console.log('VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL);
+console.log('VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY);
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// For development, use fallback values if env vars are missing
+const finalSupabaseUrl = supabaseUrl || 'https://demo.supabase.co';
+const finalSupabaseAnonKey = supabaseAnonKey || 'demo_key';
+
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
+  console.warn('Using fallback Supabase credentials for development');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(finalSupabaseUrl, finalSupabaseAnonKey, {
   realtime: {
     params: {
       eventsPerSecond: 10
